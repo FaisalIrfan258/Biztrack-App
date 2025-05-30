@@ -1,30 +1,75 @@
 import { Ionicons } from '@expo/vector-icons';
-import React from 'react';
-import { ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { router } from 'expo-router';
+import React, { useEffect, useState } from 'react';
+import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import AddBalanceModal from '../../components/modals/AddBalanceModal';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../context/AuthContext';
+import { logoutUser } from '../../services/api/authService';
+import { BalanceResponse, getBalance } from '../../services/api/balanceService';
 
 export default function DashboardScreen() {
   const colorScheme = useColorScheme() || 'light';
   const colors = Colors[colorScheme];
-  const { user } = useAuth();
+  const { user, token, logout } = useAuth();
   
-  // Mock data for the dashboard
-  const balanceSummary = {
-    totalBalance: 24500.75,
-    income: 32000,
-    expenses: 7499.25
+  const [balanceData, setBalanceData] = useState<BalanceResponse | null>(null);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [isAddBalanceModalVisible, setIsAddBalanceModalVisible] = useState(false);
+  
+  // Check if user is super admin
+  const isSuperAdmin = user?.role === 'superadmin';
+  
+  useEffect(() => {
+    fetchBalanceData();
+  }, []);
+  
+  const fetchBalanceData = async () => {
+    if (!token) return;
+    
+    try {
+      setLoading(true);
+      const data = await getBalance(token);
+      setBalanceData(data);
+    } catch (err: any) {
+      setError(err.message || 'Failed to load balance');
+      console.error('Balance fetch error:', err);
+    } finally {
+      setLoading(false);
+    }
   };
   
-  const recentTransactions = [
-    { id: '1', title: 'Office Supplies', amount: -350.25, date: '2023-05-28', category: 'Expenses' },
-    { id: '2', title: 'Client Payment', amount: 2500, date: '2023-05-26', category: 'Income' },
-    { id: '3', title: 'Software Subscription', amount: -89.99, date: '2023-05-25', category: 'Expenses' },
-    { id: '4', title: 'Consulting Fee', amount: 1200, date: '2023-05-24', category: 'Income' },
-  ];
-  
   const formatCurrency = (amount: number) => {
-    return `$${amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+    return `Rs ${amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+  };
+  
+  const navigateToBalance = () => {
+    router.push('/(tabs)/balance');
+  };
+  
+  const handleAddIncome = () => {
+    if (isSuperAdmin) {
+      setIsAddBalanceModalVisible(true);
+    } else {
+      // For non-admin users, show a different screen or alert
+      Alert.alert('Permission Denied', 'Only super admins can add balance directly.');
+    }
+  };
+
+  const handleLogout = async () => {
+    try {
+      if (token) {
+        await logoutUser(token);
+      }
+      logout();
+      router.replace('/login');
+    } catch (err) {
+      console.error('Logout error:', err);
+      // Even if API call fails, still logout locally
+      logout();
+      router.replace('/login');
+    }
   };
   
   return (
@@ -34,52 +79,87 @@ export default function DashboardScreen() {
           <Text style={[styles.welcomeText, { color: colors.muted }]}>Welcome back,</Text>
           <Text style={[styles.userName, { color: colors.text }]}>{user?.name || 'User'}</Text>
         </View>
-        <TouchableOpacity style={[styles.notificationButton, { backgroundColor: colors.card }]}>
-          <Ionicons name="notifications-outline" size={24} color={colors.text} />
-        </TouchableOpacity>
+        <View style={styles.headerButtons}>
+          <TouchableOpacity 
+            style={[styles.iconButton, { backgroundColor: colors.card, marginRight: 10 }]}
+            onPress={() => router.push('/(tabs)/profile')}
+          >
+            <Ionicons name="person-outline" size={24} color={colors.text} />
+          </TouchableOpacity>
+          <TouchableOpacity 
+            style={[styles.iconButton, { backgroundColor: colors.card }]}
+            onPress={handleLogout}
+          >
+            <Ionicons name="log-out-outline" size={24} color={colors.error} />
+          </TouchableOpacity>
+        </View>
       </View>
       
-      <View style={[styles.balanceCard, { backgroundColor: colors.tint }]}>
+      <TouchableOpacity 
+        style={[styles.balanceCard, { backgroundColor: colors.tint }]}
+        onPress={navigateToBalance}
+        activeOpacity={0.9}
+      >
         <Text style={styles.balanceLabel}>Total Balance</Text>
-        <Text style={styles.balanceAmount}>{formatCurrency(balanceSummary.totalBalance)}</Text>
+        {loading ? (
+          <ActivityIndicator size="small" color="#FFFFFF" />
+        ) : (
+          <Text style={styles.balanceAmount}>
+            {balanceData ? formatCurrency(balanceData.balance) : 'Rs 0.00'}
+          </Text>
+        )}
         <View style={styles.balanceDetails}>
-          <View style={styles.balanceItem}>
+          <View key="income-item" style={styles.balanceItem}>
             <View style={styles.balanceIconContainer}>
               <Ionicons name="arrow-down" size={16} color="#FFFFFF" />
             </View>
             <View>
               <Text style={styles.balanceItemLabel}>Income</Text>
-              <Text style={styles.balanceItemValue}>{formatCurrency(balanceSummary.income)}</Text>
+              <Text style={styles.balanceItemValue}>
+                {/* Will be replaced with real data from API */}
+                Rs 0.00
+              </Text>
             </View>
           </View>
-          <View style={styles.balanceItem}>
+          <View key="expense-item" style={styles.balanceItem}>
             <View style={[styles.balanceIconContainer, { backgroundColor: 'rgba(255, 255, 255, 0.2)' }]}>
               <Ionicons name="arrow-up" size={16} color="#FFFFFF" />
             </View>
             <View>
               <Text style={styles.balanceItemLabel}>Expenses</Text>
-              <Text style={styles.balanceItemValue}>{formatCurrency(balanceSummary.expenses)}</Text>
+              <Text style={styles.balanceItemValue}>
+                {/* Will be replaced with real data from API */}
+                Rs 0.00
+              </Text>
             </View>
           </View>
         </View>
-      </View>
+      </TouchableOpacity>
       
       <View style={styles.quickActions}>
-        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.card }]}>
+        <TouchableOpacity 
+          key="add-income-button"
+          style={[styles.actionButton, { backgroundColor: colors.card }]}
+          onPress={handleAddIncome}
+        >
           <View style={[styles.actionIcon, { backgroundColor: colors.tint + '20' }]}>
             <Ionicons name="add-outline" size={24} color={colors.tint} />
           </View>
           <Text style={[styles.actionText, { color: colors.text }]}>Add Income</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.card }]}>
+        <TouchableOpacity 
+          key="add-expense-button"
+          style={[styles.actionButton, { backgroundColor: colors.card }]}>
           <View style={[styles.actionIcon, { backgroundColor: colors.error + '20' }]}>
             <Ionicons name="remove-outline" size={24} color={colors.error} />
           </View>
           <Text style={[styles.actionText, { color: colors.text }]}>Add Expense</Text>
         </TouchableOpacity>
         
-        <TouchableOpacity style={[styles.actionButton, { backgroundColor: colors.card }]}>
+        <TouchableOpacity 
+          key="create-invoice-button"
+          style={[styles.actionButton, { backgroundColor: colors.card }]}>
           <View style={[styles.actionIcon, { backgroundColor: colors.info + '20' }]}>
             <Ionicons name="document-text-outline" size={24} color={colors.info} />
           </View>
@@ -95,36 +175,21 @@ export default function DashboardScreen() {
       </View>
       
       <View style={styles.transactionsList}>
-        {recentTransactions.map((transaction) => (
-          <TouchableOpacity 
-            key={transaction.id} 
-            style={[styles.transactionItem, { backgroundColor: colors.card }]}
-          >
-            <View style={[
-              styles.transactionCategory, 
-              { backgroundColor: transaction.amount > 0 ? colors.success + '20' : colors.error + '20' }
-            ]}>
-              <Ionicons 
-                name={transaction.amount > 0 ? 'arrow-down' : 'arrow-up'} 
-                size={16} 
-                color={transaction.amount > 0 ? colors.success : colors.error} 
-              />
-            </View>
-            <View style={styles.transactionInfo}>
-              <Text style={[styles.transactionTitle, { color: colors.text }]}>{transaction.title}</Text>
-              <Text style={[styles.transactionDate, { color: colors.muted }]}>{transaction.date}</Text>
-            </View>
-            <Text 
-              style={[
-                styles.transactionAmount, 
-                { color: transaction.amount > 0 ? colors.success : colors.error }
-              ]}
-            >
-              {transaction.amount > 0 ? '+' : ''}{formatCurrency(transaction.amount)}
-            </Text>
-          </TouchableOpacity>
-        ))}
+        {/* This will be replaced with real transaction data from API */}
+        <View style={[styles.emptyTransactions, { backgroundColor: colors.card }]}>
+          <Text style={[styles.emptyText, { color: colors.muted }]}>
+            No recent transactions
+          </Text>
+        </View>
       </View>
+      
+      {/* Add Balance Modal */}
+      <AddBalanceModal
+        key="dashboard-add-modal"
+        visible={isAddBalanceModalVisible}
+        onClose={() => setIsAddBalanceModalVisible(false)}
+        onSuccess={fetchBalanceData}
+      />
     </ScrollView>
   );
 }
@@ -149,7 +214,11 @@ const styles = StyleSheet.create({
     fontWeight: 'bold',
     marginTop: 4,
   },
-  notificationButton: {
+  headerButtons: {
+    flexDirection: 'row',
+    alignItems: 'center',
+  },
+  iconButton: {
     width: 40,
     height: 40,
     borderRadius: 20,
@@ -240,6 +309,14 @@ const styles = StyleSheet.create({
   transactionsList: {
     paddingHorizontal: 20,
     paddingBottom: 20,
+  },
+  emptyTransactions: {
+    padding: 24,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 16,
   },
   transactionItem: {
     flexDirection: 'row',

@@ -1,75 +1,24 @@
-import { Ionicons } from '@expo/vector-icons';
-import { router, useLocalSearchParams } from 'expo-router';
-import React, { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { router } from 'expo-router';
+import React from 'react';
+import { Image, KeyboardAvoidingView, Linking, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { Button } from '../../components/ui/Button';
-import { Input } from '../../components/ui/Input';
 import { Colors } from '../../constants/Colors';
-import { useAuth } from '../../context/AuthContext';
 
 export default function ResetPasswordScreen() {
   const colorScheme = useColorScheme() || 'light';
   const colors = Colors[colorScheme];
-  const { resetPassword } = useAuth();
-  const { token } = useLocalSearchParams<{ token: string }>();
-  
-  const [password, setPassword] = useState('');
-  const [confirmPassword, setConfirmPassword] = useState('');
-  const [isLoading, setIsLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState<boolean>(false);
-  
-  const handleResetPassword = async () => {
-    if (!password || !confirmPassword) {
-      setError('Please enter both password fields');
-      return;
-    }
-    
-    if (password !== confirmPassword) {
-      setError('Passwords do not match');
-      return;
-    }
-    
-    if (password.length < 8) {
-      setError('Password must be at least 8 characters long');
-      return;
-    }
-    
-    if (!token) {
-      setError('Reset token is missing. Please try again or request a new reset link.');
-      return;
-    }
-    
-    setError(null);
-    setSuccess(false);
-    setIsLoading(true);
-    
-    try {
-      const result = await resetPassword(token, password);
-      
-      if (result.success) {
-        setSuccess(true);
-        // Clear form after successful reset
-        setPassword('');
-        setConfirmPassword('');
-        
-        // Redirect to login after a delay
-        setTimeout(() => {
-          router.replace('/(auth)/login');
-        }, 3000);
-      } else {
-        setError(result.error || 'Failed to reset password. Please try again.');
-      }
-    } catch (err) {
-      setError('An unexpected error occurred. Please try again.');
-      console.error(err);
-    } finally {
-      setIsLoading(false);
-    }
-  };
   
   const navigateToLogin = () => {
     router.replace('/(auth)/login');
+  };
+  
+  const requestNewResetLink = () => {
+    router.replace('/(auth)/forgot-password');
+  };
+  
+  const openWebResetPage = () => {
+    // Open the web reset page in browser
+    Linking.openURL('https://biztrackbackend.onrender.com/reset-password');
   };
   
   return (
@@ -92,48 +41,28 @@ export default function ResetPasswordScreen() {
           </View>
           <Text style={[styles.title, { color: colors.text }]}>Reset Password</Text>
           <Text style={[styles.subtitle, { color: colors.muted }]}>
-            Enter your new password below
+            Password reset is available via web browser
           </Text>
         </View>
         
         <View style={styles.formContainer}>
-          {error && (
-            <View style={[styles.messageContainer, { backgroundColor: colors.error + '20' }]}>
-              <Text style={[styles.messageText, { color: colors.error }]}>{error}</Text>
-            </View>
-          )}
+          <View style={[styles.messageContainer, { backgroundColor: colors.info + '20' }]}>
+            <Text style={[styles.messageText, { color: colors.info }]}>
+              For security reasons, password reset is now handled through our web interface. Please check your email for the reset link or request a new one.
+            </Text>
+          </View>
           
-          {success && (
-            <View style={[styles.messageContainer, { backgroundColor: colors.success + '20' }]}>
-              <Text style={[styles.messageText, { color: colors.success }]}>
-                Password has been reset successfully! Redirecting to login...
-              </Text>
-            </View>
-          )}
-          
-          <Input
-            label="New Password"
-            placeholder="Enter your new password"
-            value={password}
-            onChangeText={setPassword}
-            isPassword
-            leftIcon={<Ionicons name="lock-closed-outline" size={20} color={colors.muted} />}
-          />
-          
-          <Input
-            label="Confirm Password"
-            placeholder="Confirm your new password"
-            value={confirmPassword}
-            onChangeText={setConfirmPassword}
-            isPassword
-            leftIcon={<Ionicons name="lock-closed-outline" size={20} color={colors.muted} />}
+          <Button 
+            title="Request Password Reset" 
+            onPress={requestNewResetLink}
+            style={styles.submitButton}
           />
           
           <Button 
-            title="Reset Password" 
-            onPress={handleResetPassword}
-            isLoading={isLoading}
-            style={styles.submitButton}
+            title="Open Web Reset Page" 
+            onPress={openWebResetPage}
+            style={[styles.submitButton, { marginTop: 12 }]}
+            variant="outline"
           />
           
           <TouchableOpacity 
@@ -185,12 +114,15 @@ const styles = StyleSheet.create({
     width: '100%',
   },
   messageContainer: {
-    padding: 12,
+    padding: 16,
     borderRadius: 8,
-    marginBottom: 16,
+    marginBottom: 24,
+    alignItems: 'center',
   },
   messageText: {
     fontSize: 14,
+    textAlign: 'center',
+    lineHeight: 20,
   },
   submitButton: {
     marginTop: 16,

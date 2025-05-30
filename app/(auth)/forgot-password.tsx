@@ -1,7 +1,7 @@
 import { Ionicons } from '@expo/vector-icons';
 import { router } from 'expo-router';
 import React, { useState } from 'react';
-import { Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import { Alert, Image, KeyboardAvoidingView, Platform, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
 import { Button } from '../../components/ui/Button';
 import { Input } from '../../components/ui/Input';
 import { Colors } from '../../constants/Colors';
@@ -32,6 +32,14 @@ export default function ForgotPasswordScreen() {
       
       if (result.success) {
         setSuccess(true);
+        setEmail('');
+        
+        // Show success alert with more detailed instructions
+        Alert.alert(
+          "Reset Link Sent",
+          "A password reset link has been sent to your email. Please check your inbox and click the link to reset your password.",
+          [{ text: "OK" }]
+        );
       } else {
         setError(result.error || 'Failed to process request. Please try again.');
       }
@@ -89,6 +97,9 @@ export default function ForgotPasswordScreen() {
             <View style={[styles.messageContainer, { backgroundColor: colors.success + '20' }]}>
               <Text style={[styles.messageText, { color: colors.success }]}>
                 Password reset link has been sent to your email address.
+              </Text>
+              <Text style={[styles.messageSubText, { color: colors.success }]}>
+                Please check your inbox and spam folders.
               </Text>
             </View>
           )}
@@ -170,9 +181,17 @@ const styles = StyleSheet.create({
     padding: 12,
     borderRadius: 8,
     marginBottom: 16,
+    alignItems: 'center',
   },
   messageText: {
     fontSize: 14,
+    textAlign: 'center',
+  },
+  messageSubText: {
+    fontSize: 12,
+    textAlign: 'center',
+    marginTop: 4,
+    opacity: 0.8,
   },
   submitButton: {
     marginTop: 16,
