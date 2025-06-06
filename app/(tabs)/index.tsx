@@ -1,47 +1,118 @@
 import { Ionicons } from '@expo/vector-icons';
-import { router } from 'expo-router';
+import { format } from 'date-fns';
+import { Link, router } from 'expo-router';
 import React, { useEffect, useState } from 'react';
 import { ActivityIndicator, Alert, ScrollView, StyleSheet, Text, TouchableOpacity, useColorScheme, View } from 'react-native';
+import AddTransactionModal from '../../components/AddTransactionModal';
 import AddBalanceModal from '../../components/modals/AddBalanceModal';
 import { Colors } from '../../constants/Colors';
 import { useAuth } from '../../context/AuthContext';
 import { logoutUser } from '../../services/api/authService';
-import { BalanceResponse, getBalance } from '../../services/api/balanceService';
+import { BalanceData, getBalance } from '../../services/api/balanceService';
+import { getRecentTransactions, Transaction } from '../../services/api/transactionService';
 
 export default function DashboardScreen() {
   const colorScheme = useColorScheme() || 'light';
   const colors = Colors[colorScheme];
   const { user, token, logout } = useAuth();
   
-  const [balanceData, setBalanceData] = useState<BalanceResponse | null>(null);
+  const [balance, setBalance] = useState<BalanceData | null>(null);
+  const [recentTransactions, setRecentTransactions] = useState<Transaction[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [isAddBalanceModalVisible, setIsAddBalanceModalVisible] = useState(false);
+  const [addModalVisible, setAddModalVisible] = useState(false);
   
   // Check if user is super admin
   const isSuperAdmin = user?.role === 'superadmin';
   
   useEffect(() => {
-    fetchBalanceData();
+    fetchDashboardData();
   }, []);
   
-  const fetchBalanceData = async () => {
-    if (!token) return;
-    
+  const fetchDashboardData = async () => {
     try {
       setLoading(true);
-      const data = await getBalance(token);
-      setBalanceData(data);
+      setError(null);
+      
+      if (!token) {
+        setError('Authentication token not found');
+        return;
+      }
+      
+      // Fetch balance data
+      const balanceResponse = await getBalance(token);
+      if (balanceResponse.success && balanceResponse.data) {
+        setBalance(balanceResponse.data);
+      }
+      
+      // Fetch recent transactions
+      const transactionsResponse = await getRecentTransactions(token, 5);
+      if (transactionsResponse.success && transactionsResponse.transactions) {
+        setRecentTransactions(transactionsResponse.transactions);
+      }
     } catch (err: any) {
-      setError(err.message || 'Failed to load balance');
-      console.error('Balance fetch error:', err);
+      setError(err.message || 'Failed to load dashboard data');
+      console.error('Dashboard data fetch error:', err);
     } finally {
       setLoading(false);
     }
   };
   
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined | null) => {
+    if (amount === undefined || amount === null) {
+      return 'Rs 0.00';
+    }
     return `Rs ${amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
+  };
+  
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return format(date, 'MMM dd');
+    } catch (err) {
+      return dateString;
+    }
+  };
+  
+  const getCategoryIcon = (category: string) => {
+    // Map categories to icons
+    switch (category.toLowerCase()) {
+      case 'food':
+        return 'fast-food-outline';
+      case 'transport':
+        return 'car-outline';
+      case 'utilities':
+        return 'flash-outline';
+      case 'rent':
+        return 'home-outline';
+      case 'supplies':
+        return 'basket-outline';
+      case 'salary':
+        return 'cash-outline';
+      default:
+        return 'card-outline'; // Default icon
+    }
+  };
+  
+  const getCategoryColor = (category: string) => {
+    // Map categories to colors
+    switch (category.toLowerCase()) {
+      case 'food':
+        return '#FF6B6B'; // Red
+      case 'transport':
+        return '#4ECDC4'; // Teal
+      case 'utilities':
+        return '#FFD166'; // Yellow
+      case 'rent':
+        return '#6B5B95'; // Purple
+      case 'supplies':
+        return '#88D8B0'; // Green
+      case 'salary':
+        return '#5D9CEC'; // Blue
+      default:
+        return colors.tint; // Default color
+    }
   };
   
   const navigateToBalance = () => {
@@ -72,8 +143,19 @@ export default function DashboardScreen() {
     }
   };
   
+  if (loading) {
+    return (
+      <View style={[styles.container, styles.centered, { backgroundColor: colors.background }]}>
+        <ActivityIndicator size="large" color={colors.tint} />
+      </View>
+    );
+  }
+  
   return (
-    <ScrollView style={[styles.container, { backgroundColor: colors.background }]}>
+    <ScrollView 
+      style={[styles.container, { backgroundColor: colors.background }]}
+      contentContainerStyle={styles.contentContainer}
+    >
       <View style={styles.header}>
         <View>
           <Text style={[styles.welcomeText, { color: colors.muted }]}>Welcome back,</Text>
@@ -101,11 +183,17 @@ export default function DashboardScreen() {
         activeOpacity={0.9}
       >
         <Text style={styles.balanceLabel}>Total Balance</Text>
-        {loading ? (
-          <ActivityIndicator size="small" color="#FFFFFF" />
-        ) : (
+        {balance ? (
           <Text style={styles.balanceAmount}>
-            {balanceData ? formatCurrency(balanceData.balance) : 'Rs 0.00'}
+            {formatCurrency(balance.amount)}
+          </Text>
+        ) : error ? (
+          <Text style={[styles.errorText, { color: colors.error }]}>
+            {error}
+          </Text>
+        ) : (
+          <Text style={[styles.balanceAmount, { color: colors.muted }]}>
+            Rs 0.00
           </Text>
         )}
         <View style={styles.balanceDetails}>
@@ -136,16 +224,83 @@ export default function DashboardScreen() {
         </View>
       </TouchableOpacity>
       
+      <View style={styles.section}>
+        <View style={styles.sectionHeader}>
+          <Text style={[styles.sectionTitle, { color: colors.text }]}>
+            Recent Transactions
+          </Text>
+          <Link href="/(tabs)/transactions" asChild>
+            <TouchableOpacity>
+              <Text style={[styles.seeAllText, { color: colors.tint }]}>See All</Text>
+            </TouchableOpacity>
+          </Link>
+        </View>
+        
+        <View style={styles.transactionsList}>
+          {recentTransactions.length > 0 ? (
+            recentTransactions.map((transaction) => (
+              <TouchableOpacity 
+                key={transaction.transactionId}
+                style={[styles.transactionItem, { backgroundColor: colors.card }]}
+                onPress={() => router.push('/(tabs)/transactions')}
+              >
+                <View 
+                  style={[
+                    styles.categoryIcon, 
+                    { backgroundColor: getCategoryColor(transaction.category) + '20' }
+                  ]}
+                >
+                  <Ionicons 
+                    name={getCategoryIcon(transaction.category)} 
+                    size={20} 
+                    color={getCategoryColor(transaction.category)} 
+                  />
+                </View>
+                <View style={styles.transactionDetails}>
+                  <Text style={[styles.transactionPurpose, { color: colors.text }]} numberOfLines={1}>
+                    {transaction.purpose}
+                  </Text>
+                  <Text style={[styles.transactionMeta, { color: colors.muted }]}>
+                    {transaction.category} • {formatDate(transaction.date)}
+                  </Text>
+                </View>
+                <View style={styles.transactionAmount}>
+                  <Text 
+                    style={[
+                      styles.amountText, 
+                      { color: colors.text }
+                    ]}
+                  >
+                    {formatCurrency(transaction.amount)}
+                  </Text>
+                  {transaction.returned && (
+                    <View style={[styles.returnedTag, { backgroundColor: colors.success + '20' }]}>
+                      <Text style={[styles.returnedText, { color: colors.success }]}>Returned</Text>
+                    </View>
+                  )}
+                </View>
+              </TouchableOpacity>
+            ))
+          ) : (
+            <View style={[styles.emptyContainer, { backgroundColor: colors.card }]}>
+              <Text style={[styles.emptyText, { color: colors.muted }]}>
+                No recent transactions
+              </Text>
+            </View>
+          )}
+        </View>
+      </View>
+      
       <View style={styles.quickActions}>
         <TouchableOpacity 
           key="add-income-button"
           style={[styles.actionButton, { backgroundColor: colors.card }]}
-          onPress={handleAddIncome}
+          onPress={() => setAddModalVisible(true)}
         >
           <View style={[styles.actionIcon, { backgroundColor: colors.tint + '20' }]}>
-            <Ionicons name="add-outline" size={24} color={colors.tint} />
+            <Ionicons name="add" size={20} color={colors.tint} />
           </View>
-          <Text style={[styles.actionText, { color: colors.text }]}>Add Income</Text>
+          <Text style={[styles.actionText, { color: colors.text }]}>Add Transaction</Text>
         </TouchableOpacity>
         
         <TouchableOpacity 
@@ -167,28 +322,19 @@ export default function DashboardScreen() {
         </TouchableOpacity>
       </View>
       
-      <View style={styles.sectionHeader}>
-        <Text style={[styles.sectionTitle, { color: colors.text }]}>Recent Transactions</Text>
-        <TouchableOpacity>
-          <Text style={[styles.seeAllText, { color: colors.tint }]}>See All</Text>
-        </TouchableOpacity>
-      </View>
-      
-      <View style={styles.transactionsList}>
-        {/* This will be replaced with real transaction data from API */}
-        <View style={[styles.emptyTransactions, { backgroundColor: colors.card }]}>
-          <Text style={[styles.emptyText, { color: colors.muted }]}>
-            No recent transactions
-          </Text>
-        </View>
-      </View>
-      
       {/* Add Balance Modal */}
       <AddBalanceModal
         key="dashboard-add-modal"
         visible={isAddBalanceModalVisible}
         onClose={() => setIsAddBalanceModalVisible(false)}
-        onSuccess={fetchBalanceData}
+        onSuccess={fetchDashboardData}
+      />
+      
+      {/* Add Transaction Modal */}
+      <AddTransactionModal
+        visible={addModalVisible}
+        onClose={() => setAddModalVisible(false)}
+        onSuccess={fetchDashboardData}
       />
     </ScrollView>
   );
@@ -198,13 +344,18 @@ const styles = StyleSheet.create({
   container: {
     flex: 1,
   },
+  contentContainer: {
+    padding: 16,
+  },
+  centered: {
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    paddingHorizontal: 20,
-    paddingTop: 20,
-    paddingBottom: 10,
+    marginBottom: 16,
   },
   welcomeText: {
     fontSize: 14,
@@ -267,6 +418,76 @@ const styles = StyleSheet.create({
     fontSize: 14,
     fontWeight: '600',
   },
+  section: {
+    marginBottom: 24,
+  },
+  sectionHeader: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 12,
+  },
+  sectionTitle: {
+    fontSize: 18,
+    fontWeight: '600',
+  },
+  seeAllText: {
+    fontSize: 14,
+    fontWeight: '500',
+  },
+  transactionsList: {
+    gap: 12,
+  },
+  transactionItem: {
+    flexDirection: 'row',
+    padding: 12,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  categoryIcon: {
+    width: 40,
+    height: 40,
+    borderRadius: 20,
+    justifyContent: 'center',
+    alignItems: 'center',
+    marginRight: 12,
+  },
+  transactionDetails: {
+    flex: 1,
+  },
+  transactionPurpose: {
+    fontSize: 15,
+    fontWeight: '500',
+    marginBottom: 2,
+  },
+  transactionMeta: {
+    fontSize: 12,
+  },
+  transactionAmount: {
+    alignItems: 'flex-end',
+  },
+  amountText: {
+    fontSize: 15,
+    fontWeight: '600',
+    marginBottom: 2,
+  },
+  returnedTag: {
+    paddingVertical: 2,
+    paddingHorizontal: 6,
+    borderRadius: 4,
+  },
+  returnedText: {
+    fontSize: 10,
+    fontWeight: '500',
+  },
+  emptyContainer: {
+    padding: 16,
+    borderRadius: 12,
+    alignItems: 'center',
+  },
+  emptyText: {
+    fontSize: 14,
+  },
   quickActions: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -292,60 +513,7 @@ const styles = StyleSheet.create({
     fontWeight: '500',
     textAlign: 'center',
   },
-  sectionHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
-    paddingHorizontal: 20,
-    marginBottom: 12,
-  },
-  sectionTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-  },
-  seeAllText: {
-    fontSize: 14,
-  },
-  transactionsList: {
-    paddingHorizontal: 20,
-    paddingBottom: 20,
-  },
-  emptyTransactions: {
-    padding: 24,
-    borderRadius: 12,
-    alignItems: 'center',
-  },
-  emptyText: {
+  errorText: {
     fontSize: 16,
-  },
-  transactionItem: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    padding: 16,
-    borderRadius: 12,
-    marginBottom: 12,
-  },
-  transactionCategory: {
-    width: 36,
-    height: 36,
-    borderRadius: 18,
-    justifyContent: 'center',
-    alignItems: 'center',
-  },
-  transactionInfo: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  transactionTitle: {
-    fontSize: 16,
-    fontWeight: '500',
-  },
-  transactionDate: {
-    fontSize: 12,
-    marginTop: 4,
-  },
-  transactionAmount: {
-    fontSize: 16,
-    fontWeight: '600',
   },
 });

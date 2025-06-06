@@ -21,6 +21,7 @@ export const ENDPOINTS = {
   TRANSACTIONS: {
     LIST: '/api/transactions',
     CREATE: '/api/transactions',
+    GET: (id: string) => `/api/transactions/${id}`,
     UPDATE: (id: string) => `/api/transactions/${id}`,
     DELETE: (id: string) => `/api/transactions/${id}`,
   },

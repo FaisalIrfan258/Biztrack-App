@@ -63,7 +63,7 @@ export default function TabLayout() {
         <Tabs.Screen
           name="action-logs"
           options={{
-            title: 'Action Logs',
+            title: 'Actions',
             tabBarIcon: ({ color, size }) => (
               <Ionicons name="list-outline" size={size} color={color} />
             ),
@@ -78,26 +78,11 @@ export default function TabLayout() {
             ),
           }}
         />
-        {/* Hidden screens that don't appear in tab bar */}
-        <Tabs.Screen
-          name="balance"
-          options={{
-            title: 'Balance',
-            tabBarButton: () => null, // Hide from tab bar
-            headerLeft: ({ tintColor }) => (
-              <Ionicons 
-                name="arrow-back" 
-                size={24} 
-                color={tintColor} 
-                style={{ marginLeft: 16 }}
-                onPress={() => {
-                  const { router } = require('expo-router');
-                  router.back();
-                }}
-              />
-            ),
-          }}
-        />
+       
+        
+            
+        
+      
       </Tabs>
     </TokenValidator>
   );

@@ -1,7 +1,7 @@
 import { API_BASE_URL, ApiResponse, ENDPOINTS, getHeaders, handleApiError, handleApiResponse } from './config';
 
 // Balance response type
-export interface BalanceResponse {
+export interface BalanceResponse extends ApiResponse {
   success: boolean;
   balance: number;
   lastUpdated: string;
@@ -34,7 +34,10 @@ export const getBalance = async (token: string): Promise<BalanceResponse> => {
       headers: getHeaders(token),
     });
 
-    return await handleApiResponse(response);
+    const data = await handleApiResponse(response);
+    
+    // The API response already matches our type
+    return data;
   } catch (error) {
     console.error('Get balance error:', error);
     throw handleApiError(error);

@@ -51,7 +51,8 @@ export default function BalanceScreen() {
     }
   };
   
-  const formatCurrency = (amount: number) => {
+  const formatCurrency = (amount: number | undefined) => {
+    if (amount === undefined || amount === null) return 'Rs 0.00';
     return `Rs ${amount.toFixed(2).replace(/\d(?=(\d{3})+\.)/g, '$&,')}`;
   };
   
@@ -130,7 +131,7 @@ export default function BalanceScreen() {
       
       <FlatList
         data={history}
-        keyExtractor={(item) => item.transactionId}
+        keyExtractor={(item, index) => item?.transactionId || `history-${index}`}
         renderItem={({ item }) => (
           <View style={[styles.historyItem, { backgroundColor: colors.card }]}>
             <View style={styles.historyItemHeader}>
